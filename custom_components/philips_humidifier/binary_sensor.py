@@ -1,4 +1,4 @@
-"""Binary sensor platform for philips-humidifier."""
+"""Binary sensor platform for philips_humidifier."""
 from __future__ import annotations
 
 from homeassistant.components.binary_sensor import (
@@ -13,7 +13,7 @@ from .entity import IntegrationBlueprintEntity
 
 ENTITY_DESCRIPTIONS = (
     BinarySensorEntityDescription(
-        key="philips-humidifier",
+        key="philips_humidifier",
         name="Philips Humidifier Binary Sensor",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
     ),
@@ -33,7 +33,7 @@ async def async_setup_entry(hass, entry, async_add_devices):
 
 
 class IntegrationBlueprintBinarySensor(IntegrationBlueprintEntity, BinarySensorEntity):
-    """philips-humidifier binary_sensor class."""
+    """philips_humidifier binary_sensor class."""
 
     def __init__(
         self,

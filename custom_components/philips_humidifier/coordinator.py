@@ -1,4 +1,4 @@
-"""DataUpdateCoordinator for philips-humidifier."""
+"""DataUpdateCoordinator for philips_humidifier."""
 from __future__ import annotations
 
 from datetime import timedelta

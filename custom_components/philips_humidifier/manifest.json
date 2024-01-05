@@ -1,5 +1,5 @@
 {
-  "domain": "philips-humidifier",
+  "domain": "philips_humidifier",
   "name": "Philips Humidifier",
   "codeowners": [
     "@coniesco"

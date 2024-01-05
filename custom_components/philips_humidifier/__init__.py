@@ -1,4 +1,4 @@
-"""Custom integration to integrate philips-humidifier with Home Assistant.
+"""Custom integration to integrate philips_humidifier with Home Assistant.
 
 For more details about this integration, please refer to
 https://github.com/ludeeus/philips-humidifier
