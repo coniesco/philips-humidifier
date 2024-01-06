@@ -5,7 +5,9 @@
       "user": {
         "description": "The device will be shown as a humidifier",
         "data": {
-          "device": "Device to use as base"
+          "source": "Source fan entity",
+          "name": "Name for the device",
+          "entity_id": "Humidity sensor"
         }
       }
     },
