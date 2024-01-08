@@ -1,7 +1,11 @@
+from typing import Any
+
+from homeassistant.components.fan import ATTR_PRESET_MODE, SERVICE_SET_PRESET_MODE, DOMAIN as FAN_DOMAIN
 from homeassistant.components.humidifier import HumidifierEntity, HumidifierDeviceClass, HumidifierEntityFeature, \
     HumidifierAction
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_SOURCE, CONF_ENTITY_ID, CONF_NAME, STATE_UNAVAILABLE, STATE_ON
+from homeassistant.const import CONF_SOURCE, CONF_ENTITY_ID, CONF_NAME, STATE_UNAVAILABLE, STATE_ON, ATTR_ENTITY_ID, \
+    SERVICE_TURN_OFF, SERVICE_TURN_ON
 from homeassistant.core import callback, HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -17,6 +21,7 @@ async def async_setup_entry(
         config_entry: ConfigEntry,
         async_add_entities: AddEntitiesCallback
 ):
+    """Set up humidifier platform."""
     LOGGER.debug("async_setup_entry called for platform humidifier")
     registry = er.async_get(hass)
     # Validate + resolve entity registry id to entity_id
@@ -66,20 +71,13 @@ async def async_setup_entry(
     async_add_entities([humidifier], update_before_add=True)
 
 
-def _get_function(state: str) -> HumidifierFunction | None:
-    if HumidifierFunction.HUMIDIFICATION in state:
-        return HumidifierFunction.HUMIDIFICATION
-    elif HumidifierFunction.IDLE in state:
-        return HumidifierFunction.IDLE
-    else:
-        return None
-
-
 class PhilipsHumidifier(HumidifierEntity):
+    """Class to manage a Philips Humidifier."""
+
     _attr_should_poll = False
     _attr_has_entity_name = True
 
-    def __init__(
+    def __init__(  # noqa: D107
             self,
             name: str | None,
             fan_entity: str,
@@ -88,6 +86,7 @@ class PhilipsHumidifier(HumidifierEntity):
             unique_id: str | None,
             device_info: DeviceInfo | None = None
     ):
+        super().__init__()
         self._attr_unique_id = unique_id
         self._attr_device_info = device_info
         self._attr_device_class = HumidifierDeviceClass.HUMIDIFIER
@@ -97,6 +96,7 @@ class PhilipsHumidifier(HumidifierEntity):
         self._function_source_id = function_entity
         self._entities = [self._fan_source_id, self._humidity_source_id, self._function_source_id]
         self._name = name
+        self._attr_target_humidity = 35
 
         self._available = False
         self._is_on = False
@@ -109,35 +109,76 @@ class PhilipsHumidifier(HumidifierEntity):
 
     @property
     def name(self) -> str:
+        """Return the name of the humidifier."""
         return self._name
 
     @property
     def available(self) -> bool:
+        """Return if the device is available."""
         return self._available
 
     @property
     def is_on(self) -> bool | None:
-        """Return true if the entity is on."""
+        """Return if the humidifier is on."""
         return self._is_on
 
     @property
     def available_modes(self) -> list[str] | None:
+        """Return the available modes for the humidifier."""
         return self._available_modes
 
     @property
     def action(self) -> HumidifierAction | None:
+        """Return the current action of the humidifier."""
         return self._action
 
     @property
     def current_humidity(self) -> float | None:
+        """Return the current humidity."""
         return self._current_humidity
 
     @property
     def mode(self) -> str | None:
+        """Return the current mode of the humidifier."""
         return self._mode
 
-    def update(self):
-        if self:
+    async def async_set_humidity(self, humidity: int) -> None:
+        """Set the humidity target."""
+        self._attr_target_humidity = humidity
+
+    async def async_set_mode(self, mode: str) -> None:
+        """Set the mode of the humidifier."""
+        await self.hass.services.async_call(
+            FAN_DOMAIN,
+            SERVICE_SET_PRESET_MODE,
+            {ATTR_ENTITY_ID: self._fan_source_id, ATTR_PRESET_MODE: mode},
+            blocking=True,
+            context=self._context,
+        )
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn the humidifier on."""
+        await self.hass.services.async_call(
+            FAN_DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: self._fan_source_id},
+            blocking=True,
+            context=self._context,
+        )
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn the humidifier off."""
+        await self.hass.services.async_call(
+            FAN_DOMAIN,
+            SERVICE_TURN_OFF,
+            {ATTR_ENTITY_ID: self._fan_source_id},
+            blocking=True,
+            context=self._context,
+        )
+
+    async def async_update(self):
+        """Update the state of the humidifier."""
+        if not self:
             self._available = False
             return
 
@@ -146,13 +187,11 @@ class PhilipsHumidifier(HumidifierEntity):
             for entity_id in self._entities
             if (state := self.hass.states.get(entity_id)) is not None
         ]
+        LOGGER.debug(f"States: {states}")
         # Set group as unavailable if all members are unavailable or missing
-        self._available = any(state == STATE_UNAVAILABLE for state in states)
+        self._available = not any(state == STATE_UNAVAILABLE for state in states)
 
-        _function = self.hass.states.get(self._function_source_id)
-        self._function = _get_function(_function.state)
-        LOGGER.debug(f"FUNCTION: {_function}")
-        LOGGER.debug(f"FUNCTION OPTION: {_function.state}")
+        self._function = self.hass.states.get(self._function_source_id).state
         self._action = HumidifierFunction.ACTION_MAP[self._function]
 
         fan_state = self.hass.states.get(self._fan_source_id)
@@ -181,6 +220,13 @@ class PhilipsHumidifier(HumidifierEntity):
             state = event.data["new_state"].state
             self._available = state != STATE_UNAVAILABLE
             if event.data["entity_id"] == self._fan_source_id:
+                if self._current_humidity is None:
+                    self._current_humidity = self.hass.states.get(self._humidity_source_id).state
+
+                if self._function is None:
+                    self._function = self.hass.states.get(self._function_source_id).state
+                    self._action = HumidifierFunction.ACTION_MAP[self._function]
+
                 attributes = event.data["new_state"].attributes
 
                 self._is_on = state == STATE_ON
@@ -196,7 +242,7 @@ class PhilipsHumidifier(HumidifierEntity):
 
             elif event.data["entity_id"] == self._function_source_id:
                 LOGGER.debug(event.data["new_state"])
-                self._function = _get_function(state)
+                self._function = self.hass.states.get(self._function_source_id).state
                 self._action = HumidifierFunction.ACTION_MAP[self._function]
 
             self.async_write_ha_state()

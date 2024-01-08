@@ -6,8 +6,10 @@ https://github.com/ludeeus/philips-humidifier
 from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_NAME, Platform, CONF_ENTITY_ID, CONF_SOURCE
+from homeassistant.const import CONF_NAME, Platform, CONF_ENTITY_ID, CONF_SOURCE, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN, LOGGER, DATA_KEY_FAN, DATA_KEY_SENSOR
 
@@ -18,6 +20,22 @@ PLATFORM = Platform.HUMIDIFIER
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up this integration using UI."""
     LOGGER.debug(f'async_setup_entry called for {entry.data[CONF_NAME]}')
+
+    registry = er.async_get(hass)
+    source_entity_id = er.async_validate_entity_id(
+        registry, entry.data[CONF_SOURCE]
+    )
+    humidity_entity_id = er.async_validate_entity_id(
+        registry, entry.data[CONF_ENTITY_ID]
+    )
+
+    states = [
+        state.state
+        for entity_id in [source_entity_id, humidity_entity_id]
+        if (state := hass.states.get(entity_id)) is not None
+    ]
+    if states and any(state == STATE_UNAVAILABLE for state in states):
+        raise ConfigEntryNotReady("Source entities unavailable")
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {

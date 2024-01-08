@@ -16,7 +16,9 @@ FAN_FUNCTION_SELECT = "Function"
 
 
 class HumidifierFunction:
-    HUMIDIFICATION = "Purification and Humidification",
+    """Available humidifier functions."""
+
+    HUMIDIFICATION = "Purification and Humidification"
     IDLE = "Purification"
 
     ACTION_MAP = {
