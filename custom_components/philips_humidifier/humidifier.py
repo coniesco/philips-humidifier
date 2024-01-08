@@ -1,3 +1,4 @@
+"""Philips Humidifier."""
 from typing import Any
 
 from homeassistant.components.fan import ATTR_PRESET_MODE, SERVICE_SET_PRESET_MODE, DOMAIN as FAN_DOMAIN
